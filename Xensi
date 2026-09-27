@@ -1,0 +1,747 @@
+--// AXIOM HUD v2
+--// Dùng trong Roblox Studio cho game của chính bạn
+--// Features:
+--//   • Nút tròn nổi để mở / đóng menu
+--//   • Menu kéo được
+--//   • ESP toggle
+--//   • Box người chơi
+--//   • Tên
+--//   • HP realtime
+--//   • Distance realtime
+--//   • Health bar
+--//   • Highlight
+--//   • Hide teammates
+--//   • Khoảng cách tối đa
+--//   • PC movement overlay
+--
+--// Không có auto-aim / auto-fire.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local LP = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+------------------------------------------------------------
+-- CONFIG
+------------------------------------------------------------
+
+local Config = {
+    ESP = true,
+    Box = true,
+    Name = true,
+    Health = true,
+    Distance = true,
+    HealthBar = true,
+    Highlight = true,
+
+    TeamCheck = false,
+    MaxDistance = 1000,
+
+    Movement = true,
+
+    MenuSize = UDim2.fromOffset(300, 390)
+}
+
+------------------------------------------------------------
+-- GUI ROOT
+------------------------------------------------------------
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AxiomHUD"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = LP:WaitForChild("PlayerGui")
+
+------------------------------------------------------------
+-- FLOATING BUTTON
+------------------------------------------------------------
+
+local OpenButton = Instance.new("TextButton")
+OpenButton.Name = "AxiomButton"
+OpenButton.Size = UDim2.fromOffset(58, 58)
+OpenButton.Position = UDim2.new(0, 22, 0.5, -29)
+OpenButton.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+OpenButton.Text = "A"
+OpenButton.TextColor3 = Color3.fromRGB(0, 255, 110)
+OpenButton.TextSize = 25
+OpenButton.Font = Enum.Font.GothamBlack
+OpenButton.AutoButtonColor = false
+OpenButton.Parent = ScreenGui
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(1, 0)
+ButtonCorner.Parent = OpenButton
+
+local ButtonStroke = Instance.new("UIStroke")
+ButtonStroke.Color = Color3.fromRGB(0, 255, 110)
+ButtonStroke.Thickness = 2
+ButtonStroke.Parent = OpenButton
+
+------------------------------------------------------------
+-- MAIN MENU
+------------------------------------------------------------
+
+local Menu = Instance.new("Frame")
+Menu.Name = "Menu"
+Menu.Size = Config.MenuSize
+Menu.Position = UDim2.new(0, 90, 0.5, -195)
+Menu.BackgroundColor3 = Color3.fromRGB(13, 14, 18)
+Menu.Visible = false
+Menu.Parent = ScreenGui
+
+local MenuCorner = Instance.new("UICorner")
+MenuCorner.CornerRadius = UDim.new(0, 14)
+MenuCorner.Parent = Menu
+
+local MenuStroke = Instance.new("UIStroke")
+MenuStroke.Color = Color3.fromRGB(45, 255, 125)
+MenuStroke.Transparency = 0.35
+MenuStroke.Thickness = 1.5
+MenuStroke.Parent = Menu
+
+------------------------------------------------------------
+-- HEADER
+------------------------------------------------------------
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 62)
+Header.BackgroundTransparency = 1
+Header.Parent = Menu
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -30, 0, 30)
+Title.Position = UDim2.fromOffset(15, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "AXIOM"
+Title.TextColor3 = Color3.fromRGB(0, 255, 110)
+Title.TextSize = 22
+Title.Font = Enum.Font.GothamBlack
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(1, -30, 0, 18)
+Subtitle.Position = UDim2.fromOffset(15, 36)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "PLAYER OVERLAY"
+Subtitle.TextColor3 = Color3.fromRGB(130, 135, 145)
+Subtitle.TextSize = 10
+Subtitle.Font = Enum.Font.GothamBold
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.Parent = Header
+
+------------------------------------------------------------
+-- SCROLL AREA
+------------------------------------------------------------
+
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Name = "Settings"
+Scroll.Position = UDim2.fromOffset(10, 68)
+Scroll.Size = UDim2.new(1, -20, 1, -78)
+Scroll.BackgroundTransparency = 1
+Scroll.BorderSizePixel = 0
+Scroll.ScrollBarThickness = 3
+Scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 110)
+Scroll.CanvasSize = UDim2.new()
+Scroll.Parent = Menu
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 7)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = Scroll
+
+------------------------------------------------------------
+-- TOGGLE FACTORY
+------------------------------------------------------------
+
+local function CreateToggle(label, key, description)
+
+    local Row = Instance.new("TextButton")
+    Row.Size = UDim2.new(1, -4, 0, 52)
+    Row.BackgroundColor3 = Color3.fromRGB(22, 23, 29)
+    Row.Text = ""
+    Row.AutoButtonColor = false
+    Row.Parent = Scroll
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 9)
+    Corner.Parent = Row
+
+    local Label = Instance.new("TextLabel")
+    Label.Position = UDim2.fromOffset(13, 6)
+    Label.Size = UDim2.new(1, -75, 0, 20)
+    Label.BackgroundTransparency = 1
+    Label.Text = label
+    Label.TextColor3 = Color3.fromRGB(235, 235, 240)
+    Label.TextSize = 13
+    Label.Font = Enum.Font.GothamBold
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Row
+
+    local Desc = Instance.new("TextLabel")
+    Desc.Position = UDim2.fromOffset(13, 27)
+    Desc.Size = UDim2.new(1, -75, 0, 16)
+    Desc.BackgroundTransparency = 1
+    Desc.Text = description
+    Desc.TextColor3 = Color3.fromRGB(105, 108, 118)
+    Desc.TextSize = 9
+    Desc.Font = Enum.Font.Gotham
+    Desc.TextXAlignment = Enum.TextXAlignment.Left
+    Desc.Parent = Row
+
+    local Toggle = Instance.new("Frame")
+    Toggle.Size = UDim2.fromOffset(40, 22)
+    Toggle.Position = UDim2.new(1, -52, 0.5, -11)
+    Toggle.BackgroundColor3 = Color3.fromRGB(55, 57, 65)
+    Toggle.Parent = Row
+
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(1, 0)
+    ToggleCorner.Parent = Toggle
+
+    local Knob = Instance.new("Frame")
+    Knob.Size = UDim2.fromOffset(18, 18)
+    Knob.Position = UDim2.fromOffset(2, 2)
+    Knob.BackgroundColor3 = Color3.fromRGB(220, 220, 225)
+    Knob.Parent = Toggle
+
+    local KnobCorner = Instance.new("UICorner")
+    KnobCorner.CornerRadius = UDim.new(1, 0)
+    KnobCorner.Parent = Knob
+
+    local function Refresh()
+
+        local enabled = Config[key]
+
+        TweenService:Create(
+            Toggle,
+            TweenInfo.new(0.15),
+            {
+                BackgroundColor3 = enabled
+                    and Color3.fromRGB(0, 180, 80)
+                    or Color3.fromRGB(55, 57, 65)
+            }
+        ):Play()
+
+        TweenService:Create(
+            Knob,
+            TweenInfo.new(0.15),
+            {
+                Position = enabled
+                    and UDim2.fromOffset(20, 2)
+                    or UDim2.fromOffset(2, 2)
+            }
+        ):Play()
+    end
+
+    Row.MouseButton1Click:Connect(function()
+        Config[key] = not Config[key]
+        Refresh()
+    end)
+
+    Refresh()
+
+    return Row
+end
+
+------------------------------------------------------------
+-- TOGGLES
+------------------------------------------------------------
+
+CreateToggle(
+    "ESP",
+    "ESP",
+    "Bật / tắt toàn bộ player overlay"
+)
+
+CreateToggle(
+    "Khung người chơi",
+    "Box",
+    "Hiển thị box bao quanh nhân vật"
+)
+
+CreateToggle(
+    "Tên",
+    "Name",
+    "Hiển thị DisplayName"
+)
+
+CreateToggle(
+    "HP",
+    "Health",
+    "Hiển thị máu hiện tại"
+)
+
+CreateToggle(
+    "Thanh HP",
+    "HealthBar",
+    "Thanh máu realtime"
+)
+
+CreateToggle(
+    "Khoảng cách",
+    "Distance",
+    "Khoảng cách tới người chơi"
+)
+
+CreateToggle(
+    "Highlight",
+    "Highlight",
+    "Viền nhân vật"
+)
+
+CreateToggle(
+    "Team Check",
+    "TeamCheck",
+    "Ẩn người cùng team"
+)
+
+CreateToggle(
+    "Nút di chuyển",
+    "Movement",
+    "Hiện bộ nút điều khiển PC"
+)
+
+------------------------------------------------------------
+-- DISTANCE LIMIT
+------------------------------------------------------------
+
+local DistanceRow = Instance.new("Frame")
+DistanceRow.Size = UDim2.new(1, -4, 0, 65)
+DistanceRow.BackgroundColor3 = Color3.fromRGB(22, 23, 29)
+DistanceRow.Parent = Scroll
+
+local DistanceCorner = Instance.new("UICorner")
+DistanceCorner.CornerRadius = UDim.new(0, 9)
+DistanceCorner.Parent = DistanceRow
+
+local DistanceTitle = Instance.new("TextLabel")
+DistanceTitle.Position = UDim2.fromOffset(13, 7)
+DistanceTitle.Size = UDim2.new(1, -25, 0, 20)
+DistanceTitle.BackgroundTransparency = 1
+DistanceTitle.Text = "Khoảng cách tối đa"
+DistanceTitle.TextColor3 = Color3.fromRGB(235,235,240)
+DistanceTitle.TextSize = 13
+DistanceTitle.Font = Enum.Font.GothamBold
+DistanceTitle.TextXAlignment = Enum.TextXAlignment.Left
+DistanceTitle.Parent = DistanceRow
+
+local DistanceValue = Instance.new("TextLabel")
+DistanceValue.Position = UDim2.new(1, -65, 0, 7)
+DistanceValue.Size = UDim2.fromOffset(50, 20)
+DistanceValue.BackgroundTransparency = 1
+DistanceValue.Text = tostring(Config.MaxDistance)
+DistanceValue.TextColor3 = Color3.fromRGB(0,255,110)
+DistanceValue.TextSize = 12
+DistanceValue.Font = Enum.Font.GothamBold
+DistanceValue.Parent = DistanceRow
+
+local Slider = Instance.new("TextButton")
+Slider.Position = UDim2.fromOffset(13, 38)
+Slider.Size = UDim2.new(1, -26, 0, 8)
+Slider.BackgroundColor3 = Color3.fromRGB(55,57,65)
+Slider.Text = ""
+Slider.Parent = DistanceRow
+
+local SliderCorner = Instance.new("UICorner")
+SliderCorner.CornerRadius = UDim.new(1,0)
+SliderCorner.Parent = Slider
+
+Slider.MouseButton1Click:Connect(function()
+    Config.MaxDistance += 100
+
+    if Config.MaxDistance > 2000 then
+        Config.MaxDistance = 100
+    end
+
+    DistanceValue.Text = tostring(Config.MaxDistance)
+end)
+
+------------------------------------------------------------
+-- ESP SYSTEM
+------------------------------------------------------------
+
+local ESP = {}
+
+local function DestroyESP(player)
+
+    local data = ESP[player]
+
+    if data then
+
+        if data.Highlight then
+            data.Highlight:Destroy()
+        end
+
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
+
+        if data.Box then
+            data.Box:Destroy()
+        end
+
+        ESP[player] = nil
+    end
+end
+
+local function CreateESP(player)
+
+    if player == LP then
+        return
+    end
+
+    local character = player.Character
+
+    if not character then
+        return
+    end
+
+    local root = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if not root or not humanoid then
+        return
+    end
+
+    DestroyESP(player)
+
+    --------------------------------------------------------
+    -- HIGHLIGHT
+    --------------------------------------------------------
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "AxiomHighlight"
+    highlight.Adornee = character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = 0.82
+    highlight.OutlineTransparency = 0
+    highlight.OutlineColor = Color3.fromRGB(0,255,100)
+    highlight.Enabled = Config.ESP and Config.Highlight
+    highlight.Parent = character
+
+    --------------------------------------------------------
+    -- BILLBOARD
+    --------------------------------------------------------
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "AxiomInfo"
+    billboard.Adornee = root
+    billboard.Size = UDim2.fromOffset(190, 72)
+    billboard.StudsOffset = Vector3.new(0, 4, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Enabled = Config.ESP
+    billboard.Parent = root
+
+    local container = Instance.new("Frame")
+    container.Size = UDim2.fromScale(1,1)
+    container.BackgroundTransparency = 1
+    container.Parent = billboard
+
+    --------------------------------------------------------
+    -- NAME
+    --------------------------------------------------------
+
+    local name = Instance.new("TextLabel")
+    name.Size = UDim2.new(1,0,0,22)
+    name.BackgroundTransparency = 1
+    name.Text = player.DisplayName
+    name.TextColor3 = Color3.fromRGB(0,255,100)
+    name.TextStrokeTransparency = 0
+    name.Font = Enum.Font.GothamBlack
+    name.TextSize = 14
+    name.Parent = container
+
+    --------------------------------------------------------
+    -- HP
+    --------------------------------------------------------
+
+    local hp = Instance.new("TextLabel")
+    hp.Position = UDim2.fromOffset(0,21)
+    hp.Size = UDim2.new(1,0,0,18)
+    hp.BackgroundTransparency = 1
+    hp.TextColor3 = Color3.new(1,1,1)
+    hp.TextStrokeTransparency = 0
+    hp.Font = Enum.Font.GothamBold
+    hp.TextSize = 12
+    hp.Parent = container
+
+    --------------------------------------------------------
+    -- DISTANCE
+    --------------------------------------------------------
+
+    local distance = Instance.new("TextLabel")
+    distance.Position = UDim2.fromOffset(0,39)
+    distance.Size = UDim2.new(1,0,0,18)
+    distance.BackgroundTransparency = 1
+    distance.TextColor3 = Color3.fromRGB(205,205,210)
+    distance.TextStrokeTransparency = 0
+    distance.Font = Enum.Font.Gotham
+    distance.TextSize = 11
+    distance.Parent = container
+
+    --------------------------------------------------------
+    -- HEALTH BAR
+    --------------------------------------------------------
+
+    local healthBackground = Instance.new("Frame")
+    healthBackground.Position = UDim2.fromOffset(8,59)
+    healthBackground.Size = UDim2.new(1,-16,0,7)
+    healthBackground.BackgroundColor3 = Color3.fromRGB(45,45,50)
+    healthBackground.BorderSizePixel = 0
+    healthBackground.Parent = container
+
+    local healthCorner = Instance.new("UICorner")
+    healthCorner.CornerRadius = UDim.new(1,0)
+    healthCorner.Parent = healthBackground
+
+    local healthFill = Instance.new("Frame")
+    healthFill.Size = UDim2.fromScale(1,1)
+    healthFill.BackgroundColor3 = Color3.fromRGB(0,255,100)
+    healthFill.BorderSizePixel = 0
+    healthFill.Parent = healthBackground
+
+    local healthFillCorner = Instance.new("UICorner")
+    healthFillCorner.CornerRadius = UDim.new(1,0)
+    healthFillCorner.Parent = healthFill
+
+    --------------------------------------------------------
+    -- BOX
+    --------------------------------------------------------
+
+    local box = Instance.new("SelectionBox")
+    box.Name = "AxiomBox"
+    box.Adornee = character
+    box.LineThickness = 0.025
+    box.Color3 = Color3.fromRGB(0,255,100)
+    box.SurfaceTransparency = 1
+    box.Visible = Config.ESP and Config.Box
+    box.Parent = character
+
+    ESP[player] = {
+        Character = character,
+        Root = root,
+        Humanoid = humanoid,
+
+        Highlight = highlight,
+        Billboard = billboard,
+        Box = box,
+
+        Name = name,
+        HP = hp,
+        Distance = distance,
+        HealthBackground = healthBackground,
+        HealthFill = healthFill
+    }
+end
+
+------------------------------------------------------------
+-- UPDATE ESP
+------------------------------------------------------------
+
+local function UpdateESP()
+
+    local localCharacter = LP.Character
+
+    local localRoot =
+        localCharacter
+        and localCharacter:FindFirstChild("HumanoidRootPart")
+
+    for player, data in pairs(ESP) do
+
+        local character = player.Character
+        local root =
+            character
+            and character:FindFirstChild("HumanoidRootPart")
+
+        local humanoid =
+            character
+            and character:FindFirstChildOfClass("Humanoid")
+
+        if not character or not root or not humanoid then
+            DestroyESP(player)
+            continue
+        end
+
+        local teamHidden =
+            Config.TeamCheck
+            and LP.Team ~= nil
+            and player.Team == LP.Team
+
+        local distance = math.huge
+
+        if localRoot then
+            distance =
+                (root.Position - localRoot.Position).Magnitude
+        end
+
+        local visible =
+            Config.ESP
+            and not teamHidden
+            and distance <= Config.MaxDistance
+
+        data.Billboard.Enabled = visible
+        data.Highlight.Enabled =
+            visible and Config.Highlight
+
+        data.Box.Visible =
+            visible and Config.Box
+
+        ----------------------------------------------------
+        -- NAME
+        ----------------------------------------------------
+
+        data.Name.Visible = Config.Name
+        data.Name.Text = player.DisplayName
+
+        ----------------------------------------------------
+        -- HP
+        ----------------------------------------------------
+
+        data.HP.Visible = Config.Health
+
+        local health =
+            math.max(0, humanoid.Health)
+
+        local maxHealth =
+            math.max(1, humanoid.MaxHealth)
+
+        data.HP.Text =
+            string.format(
+                "HP: %d / %d",
+                math.floor(health),
+                math.floor(maxHealth)
+            )
+
+        ----------------------------------------------------
+        -- DISTANCE
+        ----------------------------------------------------
+
+        data.Distance.Visible = Config.Distance
+
+        data.Distance.Text =
+            string.format(
+                "%.0f studs",
+                distance
+            )
+
+        ----------------------------------------------------
+        -- HEALTH BAR
+        ----------------------------------------------------
+
+        data.HealthBackground.Visible =
+            Config.HealthBar
+
+        data.HealthFill.Size =
+            UDim2.new(
+                math.clamp(health / maxHealth, 0, 1),
+                0,
+                1,
+                0
+            )
+    end
+end
+
+------------------------------------------------------------
+-- PLAYER LIFECYCLE
+------------------------------------------------------------
+
+local function SetupPlayer(player)
+
+    if player == LP then
+        return
+    end
+
+    player.CharacterAdded:Connect(function()
+        task.wait(0.25)
+        CreateESP(player)
+    end)
+
+    player.CharacterRemoving:Connect(function()
+        DestroyESP(player)
+    end)
+
+    if player.Character then
+        task.spawn(CreateESP, player)
+    end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    SetupPlayer(player)
+end
+
+Players.PlayerAdded:Connect(SetupPlayer)
+
+Players.PlayerRemoving:Connect(function(player)
+    DestroyESP(player)
+end)
+
+------------------------------------------------------------
+-- RENDER LOOP
+------------------------------------------------------------
+
+RunService.RenderStepped:Connect(function()
+    UpdateESP()
+end)
+
+------------------------------------------------------------
+-- OPEN / CLOSE MENU
+------------------------------------------------------------
+
+local menuOpen = false
+
+local function SetMenu(state)
+
+    menuOpen = state
+
+    if state then
+
+        Menu.Visible = true
+        Menu.Size = UDim2.fromOffset(270, 0)
+
+        TweenService:Create(
+            Menu,
+            TweenInfo.new(
+                0.22,
+                Enum.EasingStyle.Quart,
+                Enum.EasingDirection.Out
+            ),
+            {
+                Size = Config.MenuSize
+            }
+        ):Play()
+
+    else
+
+        local tween =
+            TweenService:Create(
+                Menu,
+                TweenInfo.new(
+                    0.16,
+                    Enum.EasingStyle.Quart,
+                    Enum.EasingDirection.In
+                ),
+                {
+                    Size = UDim2.fromOffset(270, 0)
+                }
+            )
+
+        tween:Play()
+
+        tween.Completed:Once(function()
+            if not menuOpen then
+                Menu.Visible = false
+            end
+        end)
+    end
+end
+
+OpenButton.MouseButton1Click:Connect(function()
+    SetMenu(not menuOpen)
+end)
+
+------------------------------------
